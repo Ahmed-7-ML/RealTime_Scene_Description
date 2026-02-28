@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionAssist | Scene Description & Danger Detection</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts for modern typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">👁️</span>
+                <h1>VisionAssist</h1>
+            </div>
+            <p class="subtitle">Real-Time Scene Description & Danger Detection</p>
+        </header>
+
+        <main class="main-content">
+            <div class="controls-panel glass-panel">
+                <h2>Input Source</h2>
+                <div class="tabs">
+                    <button class="tab-btn active" data-target="image-tab">🖼️ Upload Image</button>
+                    <button class="tab-btn" data-target="camera-tab">🎥 Live Camera</button>
+                </div>
+
+                <!-- Image Upload Section -->
+                <div id="image-tab" class="tab-content active">
+                    <div class="upload-area" id="drop-zone">
+                        <input type="file" id="file-input" accept="image/*" hidden>
+                        <div class="upload-content">
+                            <span class="upload-icon">⬆️</span>
+                            <p>Drag & Drop an image here or</p>
+                            <button class="btn secondary" onclick="document.getElementById('file-input').click()">Browse Files</button>
+                        </div>
+                    </div>
+                    <img id="image-preview" class="preview-hidden" alt="Uploaded Preview">
+                    <button id="analyze-btn" class="btn primary" disabled>Analyze Image</button>
+                </div>
+
+                <!-- Live Camera Section -->
+                <div id="camera-tab" class="tab-content hidden">
+                    <div class="video-container">
+                        <video id="camera-stream" autoplay playsinline muted></video>
+                        <canvas id="camera-canvas" hidden></canvas>
+                        <div class="camera-overlay">
+                            <span class="recording-dot pulse"></span>
+                            <span id="fps-counter">0 FPS</span>
+                        </div>
+                    </div>
+                    <div class="camera-controls">
+                        <button id="start-camera-btn" class="btn primary">Start Camera</button>
+                        <button id="stop-camera-btn" class="btn danger hidden">Stop Camera</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="results-panel glass-panel">
+                <h2>Analysis Results</h2>
+                
+                <div id="loading-indicator" class="hidden">
+                    <div class="spinner"></div>
+                    <p>Analyzing scene...</p>
+                </div>
+
+                <div id="results-content" class="results-content hidden">
+                    <div class="status-banner" id="status-banner">
+                        <h3 id="classification-result">SAFE</h3>
+                        <p id="danger-reason" class="reason-text"></p>
+                    </div>
+
+                    <div class="result-card">
+                        <h4>Generated Caption</h4>
+                        <p id="caption-text" class="caption-text">No caption generated yet.</p>
+                    </div>
+
+                    <div class="metrics-card">
+                        <h4>Performance Metrics</h4>
+                        <div class="metrics-grid">
+                            <div class="metric">
+                                <span class="metric-label">Caption Latency</span>
+                                <span class="metric-value" id="latency-val">-- ms</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="empty-state" class="empty-state">
+                    <p>Upload an image or start the camera to see results.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
