@@ -106,17 +106,31 @@ class Captioner:
             
             try:
                 # By default, image captioning models on HF take raw binary image data
-                response = requests.post(self.api_url, headers=headers, data=img_bytes)
-                response.raise_for_status()
+                response = requests.post(
+                    self.api_url,
+                    headers=headers,
+                    data=img_bytes,
+                    timeout=60
+                )
+                # response.raise_for_status()
                 result = response.json()
                 
-                # Hugging Face usually returns a list with a dict containing 'generated_text'
+                if isinstance(result, dict) and "estimated_time" in result:
+                    wait_time = result["estimated_time"]
+                    print(f"Model is loading, waiting {wait_time} seconds...")
+                    time.sleep(wait_time)
+                    response = requests.post(
+                        self.api_url,
+                        headers=headers,
+                        data=img_bytes,
+                        timeout=60
+                    )
+                    result = response.json()
+
                 if isinstance(result, list) and len(result) > 0 and "generated_text" in result[0]:
                     caption = result[0]["generated_text"].strip()
-                elif isinstance(result, dict) and "error" in result:
-                    caption = f"Hugging Face Error: {result['error']}"
                 else:
-                    caption = f"Unexpected response format: {result}"
+                    caption = f"HF API unexpected response: {result}"
                     
             except Exception as e:
                 print(f"Hugging Face API Request Error: {e}")
