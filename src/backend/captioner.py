@@ -1,4 +1,3 @@
-import torch
 import time
 from PIL import Image
 from typing import Dict, Any
@@ -17,7 +16,16 @@ class Captioner:
             device (str): "cuda", "cpu", etc. If None, auto-detects.
         """
         self.model_name = model_name
-        self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
+        
+        if device:
+            self.device = device
+        else:
+            try:
+                import torch
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            except ImportError:
+                self.device = "cpu"
+                
         print(f"Initializing {model_name} on {self.device}...")
         
         self.processor = None
@@ -71,6 +79,7 @@ class Captioner:
             Dict containing the caption string and the latency in milliseconds.
         """
         if "blip" in self.model_name.lower():
+            import torch
             start_time = time.perf_counter()
             
             # Prepare inputs

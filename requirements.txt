@@ -1,13 +1,7 @@
 fastapi
 uvicorn[standard]
-transformers
-torch
-torchvision
 Pillow
 python-multipart
 websockets
-jupyter
-peft
-einops
 requests
 opencv-python-headless
