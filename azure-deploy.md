@@ -36,7 +36,9 @@ Before deploying, you need a Hugging Face API key to process the images natively
 
 Azure for Students often has strict "Resource disallowed by policy" region limits that completely block **App Services**. If you encounter this, try **Option 2** (Azure Container Apps) or **Option 3** (Render.com - Recommended).
 
-### Option 1: Azure App Service (Original Method)
+### Option 1: Azure App Service with GitHub Actions (Recommended for Azure)
+
+By linking your GitHub repository, Azure will automatically set up a GitHub Actions workflow that builds your Python app and deploys it every time you push to the `main` branch.
 
 1. Go back to the [Azure Portal](https://portal.azure.com/) home screen.
 2. Search for **App Services** and click it.
@@ -45,21 +47,20 @@ Azure for Students often has strict "Resource disallowed by policy" region limit
    - **Subscription**: Azure for Students
    - **Resource Group**: Select the one you made earlier (`visionassist-rg`).
    - **Name**: A unique name (e.g., `visionassist-api-mr`). This will literally be your URL!
-   - **Publish**: Choose **Docker Container**.
+   - **Publish**: Choose **Code** (Do NOT choose Docker Container).
+   - **Runtime stack**: **Python 3.11** (or 3.10).
    - **Operating System**: **Linux**.
-   - **Region**: Choose **West US 2**, **Central US**, or **Japan East**. *(Keep trying regions if you get a policy error here). [[Allowed resource deployment regions - Microsoft Azure](https://portal.azure.com/#view/Microsoft_Azure_Policy/AssignmentDetail.ReactView/id/%2Fsubscriptions%2F46886733-169e-47df-9f4b-4328b96c7745%2Fproviders%2Fmicrosoft.authorization%2Fpolicyassignments%2Fsys.regionrestriction/selectedScopes~/%5B%22%2Fsubscriptions%2F46886733-169e-47df-9f4b-4328b96c7745%22%5D)]*
+   - **Region**: Choose **West US 2**, **Central US**, or **Japan East**. *(Keep trying regions if you get a policy error here).*
    - **Pricing Plan**: Click "Explore pricing plans", select the **Free (F1)** or **Basic (B1)** tier.
-5. Go to the **Docker** tab at the top:
-   - **Image Source**: **Quickstart** (Leave other settings as default)
+5. Go to the **Deployment** tab at the top:
+   - **Continuous deployment**: Enable it.
+   - **GitHub account**: Authorize your GitHub account.
+   - **Organization**: Your GitHub Username.
+   - **Repository**: The repository you made in Step 1 (e.g. `vision-assist-app`).
+   - **Branch**: `main` or `master`.
+   - *Azure will automatically generate a workflow file (like `.github/workflows/main_vision-assist.yml`) in your repo.*
 6. Click **Review + Create**, then click **Create**. Wait for deployment to finish.
-7. Click **Go to resource**.
-8. On the left menu of the new app, scroll down to the **Deployment** section and click **Deployment Center**.
-9. Under the **Settings** tab, ignore the "sidecar containers" option (keep Continuous deployment for main container enabled). 
-10. Change the **Source** dropdown from "Other container registries" to **GitHub**. Authorize it if asked.
-   - **Organization**: Your GitHub Username
-   - **Repository**: The repository you made in Step 1 (e.g. `vision-assist-app`)
-   - **Branch**: `main` or `master`
-11. Click **Save** at the top.
+7. Click **Go to resource** and proceed to Step 4.
 
 *If you successfully created the App Service, proceed to Step 4.*
 
