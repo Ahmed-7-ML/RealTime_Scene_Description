@@ -1,8 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
     // API Configuration
-    const API_BASE_URL = 'https://vision-assist-buf7dva9gndrase5.swedencentral-01.azurewebsites.net';
-    const WS_URL = 'wss://vision-assist-buf7dva9gndrase5.swedencentral-01.azurewebsites.net/ws/livestream';
-
+    // const API_BASE_URL = 'https://vision-assist-buf7dva9gndrase5.swedencentral-01.azurewebsites.net';
+    const API_BASE_URL = window.location.origin;
+    
+    // const WS_URL = 'wss://vision-assist-buf7dva9gndrase5.swedencentral-01.azurewebsites.net/ws/livestream';
+    const WS_URL = `${window.location.origin.replace("https", "wss")}/ws/livestream`;
+    
     // DOM Elements - Navigation
     const tabs = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
