@@ -1,10 +1,12 @@
 from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from io import BytesIO
 import base64
 from PIL import Image
 import json
 import logging
+import os
 
 # Set up simple logging
 logging.basicConfig(level=logging.INFO)
@@ -36,10 +38,9 @@ from .captioner import Captioner
 caption_model = Captioner(model_name="huggingface-api")
 danger_classifier = DangerClassifier()
 
-@app.get("/")
-def read_root():
-    """Health check endpoint."""
-    return {"status": "ok", "message": "VisionAssist API is running."}
+# Mount the frontend directory to serve static files
+frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
+app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
 @app.post("/api/analyze/image")
 async def analyze_image(file: UploadFile = File(...)):
