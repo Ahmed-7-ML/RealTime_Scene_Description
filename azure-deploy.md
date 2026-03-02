@@ -102,7 +102,7 @@ Your app needs the AI keys to function.
 3. Under the **App settings** tab, click **+ Add** and add these three exact variables one by one:
    - Name: `SCM_DO_BUILD_DURING_DEPLOYMENT` | Value: `true` *(Very important to install dependencies!)*
    - Name: `HUGGINGFACE_API_KEY` | Value: *(Paste the Token from Step 2)*
-   - Name: `HUGGINGFACE_MODEL_URL` | Value: `https://api-inference.huggingface.co/models/microsoft/git-base-coco`
+   - Name: `HUGGINGFACE_MODEL_URL` | Value: `https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-base`
 4. Click **Apply** at the bottom, then click **Confirm** in the pop-up to restart the server.
 
 **IF you used Render (Option 3):**

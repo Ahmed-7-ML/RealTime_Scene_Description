@@ -119,7 +119,9 @@ class Captioner:
                 # InferenceClient automatically handles timeouts, retries, and formatting.
                 caption = self.client.image_to_text(img_bytes)
             except Exception as e:
-                error_msg = str(e)
+                import traceback
+                traceback.print_exc()
+                error_msg = str(e) if str(e) else repr(e)
                 print(f"Hugging Face API Request Error: {error_msg}")
                 # Provide a more descriptive error depending on common Hugging Face issues
                 if "401" in error_msg or "Unauthorized" in error_msg:
