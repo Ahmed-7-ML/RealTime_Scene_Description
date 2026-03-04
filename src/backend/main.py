@@ -108,8 +108,8 @@ async def analyze_video(file: UploadFile = File(...)):
         out_width = 800
         out_height = 600
         
-        # Use simple mp4v codec for standard web compatibility
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        # Use Web-compatible H.264 codec (avc1) instead of mp4v for HTML5 browser playback
+        fourcc = cv2.VideoWriter_fourcc(*'avc1')
         out_video = cv2.VideoWriter(out_temp_video_path, fourcc, fps, (out_width, out_height))
 
         prev_frame_embedding = None
