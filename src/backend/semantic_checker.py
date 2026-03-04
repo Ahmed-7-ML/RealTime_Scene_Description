@@ -1,73 +1,80 @@
-import torch
-from transformers import CLIPProcessor, CLIPModel
+import os
+import requests
+import json
+import logging
+import base64
+from io import BytesIO
 from PIL import Image
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 class SemanticChecker:
     """
-    Evaluates the semantic difference between two images using OpenAI's CLIP embeddings.
-    If the cosine similarity is below a given threshold, the scenes are deemed "different"
-    computationally, avoiding unnecessary caption generation for static/redundant scenes.
+    Evaluates the semantic difference between two images using an external
+    Hugging Face Inference API instead of a local heavy PyTorch model,
+    preventing out-of-memory errors on Azure's free tier.
     """
-    def __init__(self, model_name="openai/clip-vit-base-patch32", device=None):
-        if device is None:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = device
+    def __init__(self, model_name="sentence-transformers/clip-ViT-B-32"):
+        self.model_name = model_name
+        self.api_key = os.getenv("HUGGINGFACE_API_KEY")
+        self.api_url = f"https://api-inference.huggingface.co/models/{model_name}"
             
-        print(f"Loading SemanticChecker ({model_name}) on {self.device}...")
-        self.processor = CLIPProcessor.from_pretrained(model_name)
-        self.model = CLIPModel.from_pretrained(model_name).to(self.device)
-        self.model.eval()
-        print("SemanticChecker loaded successfully.")
-
-    def get_embedding(self, image: Image.Image) -> torch.Tensor:
-        """
-        Generates a normalized semantic feature vector (embedding) for a PIL Image.
-        """
-        # Ensure image is in RGB format (CV2 passes BGR originally, so this is handled upstream)
+        print(f"Loading SemanticChecker API Client for {model_name}...")
+        
+    def _image_to_base64(self, image: Image.Image) -> str:
         if image.mode != "RGB":
             image = image.convert("RGB")
-            
-        inputs = self.processor(images=image, return_tensors="pt").to(self.device)
-        
-        with torch.no_grad():
-            image_features = self.model.get_image_features(**inputs)
-            
-        # Normalize the embedding vector for cosine similarity
-        image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
-        return image_features
-        
-    def is_semantically_different(self, emb_a: torch.Tensor, emb_b: torch.Tensor, threshold: float = 0.95) -> bool:
+        buffered = BytesIO()
+        # Compress slightly to save bandwidth
+        image.save(buffered, format="JPEG", quality=85)
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+    def get_embedding(self, image: Image.Image):
         """
-        Calculates cosine similarity between two embeddings.
-        Returns True if similarity < threshold, indicating semantic difference.
+        Calls the Hugging Face API to get a normalized semantic feature vector.
+        Returns a numpy array representing the embedding, or None on failure.
+        """
+        if not self.api_key:
+             logger.warning("HUGGINGFACE_API_KEY not set. Semantic checks will be skipped.")
+             return None
+             
+        headers = {"Authorization": f"Bearer {self.api_key}"}
         
-        A threshold between 0.92 and 0.98 is typically ideal depending on the leniency 
-        desired (higher threshold = more sensitive to changes).
+        try:
+             # In CLIP sentence-transformers, we just pass the image directly
+             img_bytes = BytesIO()
+             image.save(img_bytes, format="JPEG")
+             img_bytes.seek(0)
+             
+             response = requests.post(self.api_url, headers=headers, data=img_bytes.read())
+             
+             if response.status_code == 200:
+                 # Response usually a list of floats
+                 embedding = np.array(response.json())
+                 if embedding.ndim > 1:
+                      embedding = embedding[0] # Flatten if batch dimension returned
+                 
+                 # Normalize
+                 norm = np.linalg.norm(embedding)
+                 if norm > 0:
+                     return embedding / norm
+                 return embedding
+             else:
+                 logger.error(f"Semantic API Error {response.status_code}: {response.text}")
+                 return None
+                 
+        except Exception as e:
+             logger.error(f"Failed to fetch embedding: {e}")
+             return None
+        
+    def is_semantically_different(self, emb_a, emb_b, threshold: float = 0.95) -> bool:
+        """
+        Calculates numpy cosine similarity between two embeddings.
         """
         if emb_a is None or emb_b is None:
             return True # Always different if one is missing
 
-        # Calculate cosine similarity (dot product of normalized vectors)
-        cosine_similarity = torch.nn.functional.cosine_similarity(emb_a, emb_b).item()
-        
-        # If similarity is lower than threshold, they are sufficiently different
+        # Calculate cosine similarity 
+        cosine_similarity = np.dot(emb_a, emb_b)
         return cosine_similarity < threshold
-
-# Simple self-test
-if __name__ == "__main__":
-    checker = SemanticChecker()
-    img1 = Image.new('RGB', (224, 224), color = 'red')
-    img2 = Image.new('RGB', (224, 224), color = 'blue')
-    
-    emb1 = checker.get_embedding(img1)
-    emb2 = checker.get_embedding(img2)
-    
-    # Same image
-    print(f"Similarity red to red: {torch.nn.functional.cosine_similarity(emb1, emb1).item():.4f}")
-    
-    # Different images
-    sim = torch.nn.functional.cosine_similarity(emb1, emb2).item()
-    print(f"Similarity red to blue: {sim:.4f}")
-    print(f"Is Different (Threshold 0.95)? {checker.is_semantically_different(emb1, emb2, 0.95)}")
