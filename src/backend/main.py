@@ -36,12 +36,12 @@ from .classifier import DangerClassifier
 # For this skeleton, we will mock the captioner just to test the API structure,
 # and initialize the real one inside the actual benchmark/evaluation scripts later.
 from .captioner import Captioner
-from .semantic_checker import SemanticChecker
+from .motion_tracker import MotionTracker
 
 # Global initialized model - enforcing Blip-Base
 caption_model = Captioner()
 danger_classifier = DangerClassifier()
-semantic_checker = SemanticChecker()
+motion_tracker = MotionTracker()
 
 # We will mount the frontend directory to serve static files at the end of the file.
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
@@ -112,13 +112,14 @@ async def analyze_video(file: UploadFile = File(...)):
         fourcc = cv2.VideoWriter_fourcc(*'avc1')
         out_video = cv2.VideoWriter(out_temp_video_path, fourcc, fps, (out_width, out_height))
 
-        prev_frame_embedding = None
+        prev_gray = None
         current_caption = "Analyzing initial scene..."
         current_status = "UNKNOWN"
+        motion_status = "Static"
         
-        # We can extract frames more frequently now if we only hit HF API on semantic changes
-        # E.g. 2 frames per second checks
-        frame_interval = max(int(fps // 2), 1) 
+        # We can extract frames more frequently now because LK Optical Flow is 1ms
+        # E.g. 5 frames per second checks
+        frame_interval = max(int(fps // 5), 1) 
         
         current_frame = 0
         total_processed_unique_frames = 0
@@ -131,37 +132,39 @@ async def analyze_video(file: UploadFile = File(...)):
             # Resize internal processing frames
             process_frame = cv2.resize(frame, (640, 480))
             
-            # Check for unique keyframes periodically
+            # Convert to Grayscale for Optical Flow
+            curr_gray = cv2.cvtColor(process_frame, cv2.COLOR_BGR2GRAY)
+            
+            # Check for significant motion periodically
             if current_frame % frame_interval == 0 and total_processed_unique_frames < 20:
-                logger.info(f"Checking Frame {current_frame}...")
-                color_frame = cv2.cvtColor(process_frame, cv2.COLOR_BGR2RGB)
-                pil_img = Image.fromarray(color_frame)
+                logger.info(f"Checking Frame {current_frame} Motion...")
                 
-                # Check semantic difference
-                try:
-                    current_embedding = semantic_checker.get_embedding(pil_img)
-                    
-                    if prev_frame_embedding is None:
-                        is_unique = True
-                    else:
-                        is_unique = semantic_checker.is_semantically_different(
-                            prev_frame_embedding, 
-                            current_embedding, 
-                            threshold=0.92  # Tunable threshold (0.92 - 0.96 recommended for CLIP)
-                        )
-                    
-                    if not is_unique:
-                         logger.info(f"Frame {current_frame} semantically identical to previous buffer. Skipping HF API.")
+                magnitude = 0.0
+                direction = (0.0, 0.0)
+                is_significant_movement = False
+                
+                # Check optical flow
+                if prev_gray is not None:
+                    try:
+                        magnitude, direction = motion_tracker.optical_flow_motion(prev_gray, curr_gray)
+                        motion_status = motion_tracker.interpret_direction(direction)
                         
-                except Exception as e:
-                    logger.warning(f"Semantic checker failed (fallback to unique): {e}")
-                    is_unique = True 
-                    current_embedding = None
+                        if magnitude > 3.0:
+                             is_significant_movement = True
+                             logger.info(f"Frame {current_frame}: Significant Movement (Mag: {magnitude:.2f}, Dir: {motion_status}). Generating Caption.")
+                        else:
+                             # Use small log for debugging without spamming
+                             pass
+                    except Exception as e:
+                        logger.warning(f"Optical flow tracker failed: {e}")
+                else:
+                    is_significant_movement = True # Always caption the first frame
                 
-                if is_unique:
-                    logger.info(f"⭐⭐⭐ Semantic Change Detected! Generating new caption for frame {current_frame}...")
+                if is_significant_movement:
                     
                     try:
+                        color_frame = cv2.cvtColor(process_frame, cv2.COLOR_BGR2RGB)
+                        pil_img = Image.fromarray(color_frame)
                         caption_result = caption_model.generate_caption(pil_img)
                         current_caption = caption_result["caption"]
                     except Exception as e:
@@ -172,7 +175,8 @@ async def analyze_video(file: UploadFile = File(...)):
                     current_status = classification.upper()
                     
                     total_processed_unique_frames += 1
-                    prev_frame_embedding = current_embedding
+                
+                prev_gray = curr_gray.copy()
             
             # ---------------------------------------------------------
             # DRAW OVERLAY ON THE CURRENT FRAME
@@ -194,6 +198,10 @@ async def analyze_video(file: UploadFile = File(...)):
             # Draw Status Box (Top Right padding)
             cv2.rectangle(display_frame, (10, out_height - overlay_height + 10), (130, out_height - overlay_height + 40), status_color, -1)
             cv2.putText(display_frame, current_status, (25, out_height - overlay_height + 32), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
+            # Draw Motion Context
+            cv2.putText(display_frame, f"Motion: {motion_status}", (10, out_height - overlay_height + 62), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+            cv2.putText(display_frame, f"Mag: {magnitude:.1f}", (10, out_height - overlay_height + 82), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
             
             # Handle Long Captions (Split into 2 lines if needed)
             max_chars = 60
