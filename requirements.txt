@@ -6,3 +6,5 @@ websockets
 requests
 opencv-python-headless
 huggingface_hub
+transformers
+torch

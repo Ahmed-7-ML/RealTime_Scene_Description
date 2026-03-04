@@ -35,11 +35,13 @@ from .classifier import DangerClassifier
 # Note: For production, we'd initialize the model once globally.
 # For this skeleton, we will mock the captioner just to test the API structure,
 # and initialize the real one inside the actual benchmark/evaluation scripts later.
-# 
 from .captioner import Captioner
+from .semantic_checker import SemanticChecker
+
 # Global initialized model - enforcing Blip-Base
 caption_model = Captioner()
 danger_classifier = DangerClassifier()
+semantic_checker = SemanticChecker()
 
 # We will mount the frontend directory to serve static files at the end of the file.
 frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
@@ -75,12 +77,7 @@ async def analyze_image(file: UploadFile = File(...)):
         logger.error(f"Error processing image: {str(e)}")
         return {"error": str(e)}, 500
 
-def mse(imageA, imageB):
-    # the 'Mean Squared Error' between the two images is the
-    # sum of the squared difference between the two images;
-    err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
-    err /= float(imageA.shape[0] * imageA.shape[1])
-    return err
+# Deprecated pixel-based mse check removed in favor of semantic checking
 
 @app.post("/api/analyze/video")
 async def analyze_video(file: UploadFile = File(...)):
@@ -115,13 +112,13 @@ async def analyze_video(file: UploadFile = File(...)):
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out_video = cv2.VideoWriter(out_temp_video_path, fourcc, fps, (out_width, out_height))
 
-        prev_frame_gray = None
+        prev_frame_embedding = None
         current_caption = "Analyzing initial scene..."
         current_status = "UNKNOWN"
         
-        # Extract at most 1 frame per second to avoid HF API overload
-        frame_interval = int(fps) 
-        if frame_interval <= 0: frame_interval = 1
+        # We can extract frames more frequently now if we only hit HF API on semantic changes
+        # E.g. 2 frames per second checks
+        frame_interval = max(int(fps // 2), 1) 
         
         current_frame = 0
         total_processed_unique_frames = 0
@@ -131,24 +128,38 @@ async def analyze_video(file: UploadFile = File(...)):
             if not ret:
                 break
                 
-            # Resize internal processing frames for perf
+            # Resize internal processing frames
             process_frame = cv2.resize(frame, (640, 480))
-            gray = cv2.cvtColor(process_frame, cv2.COLOR_BGR2GRAY)
             
-            # Check for unique keyframes every 1 second
+            # Check for unique keyframes periodically
             if current_frame % frame_interval == 0 and total_processed_unique_frames < 20:
-                is_unique = True
+                logger.info(f"Checking Frame {current_frame}...")
+                color_frame = cv2.cvtColor(process_frame, cv2.COLOR_BGR2RGB)
+                pil_img = Image.fromarray(color_frame)
                 
-                if prev_frame_gray is not None:
-                    error = mse(gray, prev_frame_gray)
-                    logger.info(f"Frame {current_frame} MSE: {error}")
-                    if error < 1000.0:  # Threshold
-                        is_unique = False
+                # Check semantic difference
+                try:
+                    current_embedding = semantic_checker.get_embedding(pil_img)
+                    
+                    if prev_frame_embedding is None:
+                        is_unique = True
+                    else:
+                        is_unique = semantic_checker.is_semantically_different(
+                            prev_frame_embedding, 
+                            current_embedding, 
+                            threshold=0.92  # Tunable threshold (0.92 - 0.96 recommended for CLIP)
+                        )
+                    
+                    if not is_unique:
+                         logger.info(f"Frame {current_frame} semantically identical to previous buffer. Skipping HF API.")
+                        
+                except Exception as e:
+                    logger.warning(f"Semantic checker failed (fallback to unique): {e}")
+                    is_unique = True 
+                    current_embedding = None
                 
                 if is_unique:
-                    logger.info(f"Generating caption for unique frame {current_frame}...")
-                    color_frame = cv2.cvtColor(process_frame, cv2.COLOR_BGR2RGB)
-                    pil_img = Image.fromarray(color_frame)
+                    logger.info(f"⭐⭐⭐ Semantic Change Detected! Generating new caption for frame {current_frame}...")
                     
                     try:
                         caption_result = caption_model.generate_caption(pil_img)
@@ -161,7 +172,7 @@ async def analyze_video(file: UploadFile = File(...)):
                     current_status = classification.upper()
                     
                     total_processed_unique_frames += 1
-                    prev_frame_gray = gray
+                    prev_frame_embedding = current_embedding
             
             # ---------------------------------------------------------
             # DRAW OVERLAY ON THE CURRENT FRAME
