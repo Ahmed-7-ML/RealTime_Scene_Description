@@ -116,6 +116,7 @@ async def analyze_video(file: UploadFile = File(...)):
         current_caption = "Analyzing initial scene..."
         current_status = "UNKNOWN"
         motion_status = "Static"
+        frame_captions = []
         
         # We can extract frames more frequently now because LK Optical Flow is 1ms
         # E.g. 5 frames per second checks
@@ -173,6 +174,13 @@ async def analyze_video(file: UploadFile = File(...)):
                         
                     classification, reason = danger_classifier.classify(current_caption)
                     current_status = classification.upper()
+                    
+                    frame_captions.append({
+                        "timestamp_sec": round(current_frame / fps, 2),
+                        "caption": current_caption,
+                        "classification": current_status,
+                        "reason": reason
+                    })
                     
                     total_processed_unique_frames += 1
                 
@@ -237,10 +245,20 @@ async def analyze_video(file: UploadFile = File(...)):
             video_bytes = video_file.read()
             video_b64 = base64.b64encode(video_bytes).decode('ascii')
             
+        # Generate primitive summary
+        unique_captions = [fc["caption"] for fc in frame_captions if fc["caption"] and not fc["caption"].startswith("Error")]
+        filtered_captions = []
+        for c in unique_captions:
+            if not filtered_captions or filtered_captions[-1] != c:
+                filtered_captions.append(c)
+        summary = " ".join(filtered_captions) if filtered_captions else "No distinct events detected in the video."
+            
         return {
              "video_base64": video_b64,
              "total_frames": current_frame,
-             "unique_keyframes": total_processed_unique_frames
+             "unique_keyframes": total_processed_unique_frames,
+             "summary": summary,
+             "frame_captions": frame_captions
         }
 
     except Exception as e:

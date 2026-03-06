@@ -46,6 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const captionText = document.getElementById('caption-text');
     const latencyVal = document.getElementById('latency-val');
     const statusIcon = document.getElementById('status-icon');
+    const captionHeaderTitle = document.getElementById('caption-header-title');
+    const videoActionsContainer = document.getElementById('video-actions-container');
+    const downloadReportBtn = document.getElementById('download-report-btn');
 
     // DOM Elements - Video Player
     const slideshowContainer = document.getElementById('slideshow-container');
@@ -283,10 +286,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Display summary results
                 displayResults({
-                    caption: `Video Analysis Complete. Processed ${data.unique_keyframes} unique keyframes.`,
+                    caption: data.summary || `Video Analysis Complete. Processed ${data.unique_keyframes} unique keyframes.`,
                     classification: "INFO",
                     danger_reason: "Review the generated summary video above.",
-                    latency_ms: null
+                    latency_ms: null,
+                    is_video: true,
+                    full_report: data
                 });
             } else {
                 showToast("No video generated or processing failed.", "error");
@@ -422,6 +427,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dangerReason.textContent = 'Awaiting analysis...';
         captionText.textContent = 'No caption available.';
         latencyVal.textContent = '0 ms';
+        if (captionHeaderTitle) captionHeaderTitle.textContent = 'Generated Caption';
+        if (videoActionsContainer) videoActionsContainer.classList.add('hidden');
         if (resultVideo) resultVideo.pause();
     }
 
@@ -447,6 +454,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (data.latency_ms) {
             latencyVal.textContent = `${data.latency_ms.toFixed(0)} ms`;
+        }
+
+        if (data.is_video) {
+            if (captionHeaderTitle) captionHeaderTitle.textContent = "Video Summary";
+            if (videoActionsContainer) videoActionsContainer.classList.remove('hidden');
+
+            // Set up download button
+            if (downloadReportBtn) {
+                downloadReportBtn.onclick = () => {
+                    const reportData = {
+                        summary: data.full_report.summary,
+                        total_frames: data.full_report.total_frames,
+                        unique_keyframes: data.full_report.unique_keyframes,
+                        frame_captions: data.full_report.frame_captions
+                    };
+                    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "video_analysis_report.json";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                };
+            }
+        } else {
+            if (captionHeaderTitle) captionHeaderTitle.textContent = "Generated Caption";
+            if (videoActionsContainer) videoActionsContainer.classList.add('hidden');
+            if (downloadReportBtn) downloadReportBtn.onclick = null;
         }
     }
 
