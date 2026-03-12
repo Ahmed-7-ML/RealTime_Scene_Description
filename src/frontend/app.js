@@ -58,6 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements - Toasts
     const toastContainer = document.getElementById('toast-container');
 
+    // DOM Elements - TTS
+    const ttsToggle = document.getElementById('tts-toggle');
+
     // State Variables
     let selectedImageFile = null;
     let selectedVideoFile = null;
@@ -67,6 +70,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let frameCount = 0;
     let lastFpsTime = Date.now();
     const FRAME_RATE_MS = 1000; // 1 fps
+
+    // TTS Context State Tracking
+    let isSpeaking = false;
+    let lastSpokenCaption = "";
+    let lastSpokenTime = 0;
+    const TTS_DEBOUNCE_MS = 8000; // Wait 8 seconds before repeating the exact same safe caption
 
     // SVG Icons
     const ICONS = {
@@ -97,6 +106,41 @@ document.addEventListener('DOMContentLoaded', () => {
             toast.classList.add('fade-out');
             setTimeout(() => toast.remove(), 300); // Wait for fade-out animation
         }, 4000);
+    }
+
+    // ==========================================
+    // Smart Text-to-Speech (TTS)
+    // ==========================================
+    function speakText(text, isDanger = false) {
+        if (!ttsToggle || !ttsToggle.checked) return;
+        if (!('speechSynthesis' in window)) return;
+
+        // Stop currently speaking audio immediately if danger pops up or resolving new caption
+        window.speechSynthesis.cancel();
+
+        isSpeaking = true;
+        const msg = new SpeechSynthesisUtterance();
+        msg.text = text;
+        msg.volume = 1.0;
+
+        // Make warnings sound more urgent
+        if (isDanger) {
+            msg.rate = 1.1; // Slightly faster
+            msg.pitch = 1.2; // Higher pitch
+            // Optional context prefix
+            msg.text = `Warning: ${text}`;
+        } else {
+            msg.rate = 1.0;
+            msg.pitch = 1.0;
+        }
+
+        msg.onend = () => { isSpeaking = false; };
+        msg.onerror = () => { isSpeaking = false; };
+
+        window.speechSynthesis.speak(msg);
+
+        lastSpokenCaption = text;
+        lastSpokenTime = Date.now();
     }
 
     // ==========================================
@@ -340,6 +384,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ws) ws.close();
         if (streamInterval) clearInterval(streamInterval);
 
+        // Stop any ongoing speech
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+
         startCameraBtn.classList.remove('hidden');
         stopCameraBtn.classList.add('hidden');
         fpsCounter.textContent = '0 FPS';
@@ -363,6 +412,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 displayResults(data);
                 updateFPS();
+
+                // --- Smart Debouncing TTS Logic ---
+                if (data.caption && !data.caption.startsWith("Error")) {
+                    const isDanger = (data.classification && data.classification.toUpperCase() === 'DANGEROUS');
+                    const now = Date.now();
+                    const isSameAsLast = (data.caption === lastSpokenCaption);
+                    const timeSinceLastSpeech = now - lastSpokenTime;
+
+                    // Always speak immediately if danger is detected
+                    if (isDanger) {
+                        // Play a beep sound optionally here
+                        // We don't debounce Dangers. If it's dangerous, yell immediately.
+                        // But if it's the EXACT same danger rapidly flickering, only repeat every 4 seconds.
+                        if (!isSameAsLast || timeSinceLastSpeech > 4000) {
+                            speakText(`${data.danger_reason}. ${data.caption}`, true);
+                        }
+                    }
+                    // If safe, only speak if it's a NEW scene, or if the timeout has passed
+                    else {
+                        if (!isSameAsLast || timeSinceLastSpeech > TTS_DEBOUNCE_MS) {
+                            speakText(data.caption, false);
+                        }
+                    }
+                }
+                // ------------------------------------
+
             } catch (e) {
                 console.error("Failed to parse WS message", e);
             }
