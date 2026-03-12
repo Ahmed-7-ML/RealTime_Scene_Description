@@ -7,13 +7,16 @@ VisionAssist is a real-time web application designed to help visually impaired i
 *   **Real-Time Processing:** Supports uploading static images or utilizing a live camera feed via WebSockets for instantaneous analysis.
 *   **AI Scene Description:** Uses advanced Vision-Language Models (like the Hugging Face `Salesforce/blip-image-captioning-base` or equivalent APIs) to generate accurate natural language descriptions of the scene.
 *   **Danger Detection:** Classifies generated captions to determine if a scene is `SAFE` or `DANGEROUS` (e.g., detecting obstacles, holes, or oncoming traffic).
+*   **Motion Tracking (Optical Flow):** Employs Lucas-Kanade Optical Flow to determine motion direction and magnitude (Approaching, Moving Left/Right), providing richer contextual danger alerts.
+*   **Video Synthesis & Reporting:** Extracts distinct keyframes from uploaded videos, overlays analysis and danger statuses directly onto the synthesized output video, and offers a downloadable JSON summary report.
 *   **Premium Web Interface:** A beautifully designed, responsive, and accessible dark-themed UI built with modern CSS (glassmorphism, micro-animations) and vanilla JavaScript.
 *   **Cloud Ready:** Fully containerized with Docker and includes comprehensive guides for deploying to Microsoft Azure or Render.
 
 ## 🛠️ Tech Stack
 
 *   **Frontend:** HTML5, CSS3 (Custom Variables, Flexbox/Grid, Animations), Vanilla JavaScript (WebSockets, Fetch API).
-*   **Backend:** Python 3.10+, FastAPI, Uvicorn, WebSockets.
+*   **Backend:** Python 3.11+, FastAPI, Uvicorn, WebSockets.
+*   **Computer Vision:** OpenCV (Video processing, Keyframe extraction, Lucas-Kanade Optical Flow).
 *   **Machine Learning:** PyTorch, Transformers (Hugging Face).
 *   **Deployment:** Docker, Azure App Services / Azure Container Apps / Render.
 
@@ -75,12 +78,12 @@ sequenceDiagram
     User->>User: Update UI Status Banner
 ```
 
-#### Video Analysis (Synthesis)
+#### Video Analysis (Synthesis & Reporting)
 ```mermaid
 sequenceDiagram
     participant User as Web UI
     participant Backend as FastAPI (main.py)
-    participant OpenCV as Video Processor
+    participant OpenCV as Video Processor / Tracker
     participant Captioner as captioner.py
     participant HF as HF Space (app.py)
     participant Classifier as Danger Classifier
@@ -88,9 +91,9 @@ sequenceDiagram
     User->>Backend: POST /api/analyze/video (MP4/WebM)
     Backend->>OpenCV: Read Video (cv2.VideoCapture)
     
-    loop Per Frame
-        OpenCV->>OpenCV: Extract Frame & Calculate MSE
-        alt Is keyframe & unique (MSE < 1000)?
+    loop Per Interval Frame
+        OpenCV->>OpenCV: Lucas-Kanade Optical Flow (prev vs curr)
+        alt Significant Movement & Unique frame? (Mag > 3.0)
             OpenCV->>Captioner: generate_caption()
             Captioner->>HF: POST /predict
             HF->>Captioner: Caption text
@@ -98,14 +101,15 @@ sequenceDiagram
             OpenCV->>Classifier: classify(caption)
             Classifier->>OpenCV: SAFE/DANGEROUS & reason
         end
-        OpenCV->>OpenCV: Draw overlay (Caption, Status Box) on frame
+        OpenCV->>OpenCV: Draw overlay (Caption, Status, Motion Dir)
         OpenCV->>OpenCV: Write to Output Video (cv2.VideoWriter)
     end
     
-    OpenCV->>Backend: Synthesized Video MP4 File
-    Backend->>Backend: Encode to Base64
-    Backend->>User: JSON {video_base64, total_frames, unique_keyframes}
-    User->>User: Display Synthesized Base64 MP4 Player
+    OpenCV->>Backend: Synthesized MP4 File & Aggregated Data
+    Backend->>Backend: Encode MP4 to Base64
+    Backend->>User: JSON Result (video_base64, frame_captions, keyframes)
+    User->>User: Display Synthesized Video Player
+    User->>User: Download JSON Report 
 ```
 
 #### Live Camera Stream Analysis
@@ -149,7 +153,8 @@ sequenceDiagram
  ┃ ┣ 📂 backend/               # Main Azure Server (Web & Logic Node)
  ┃ ┃ ┣ 📜 main.py              # Main API and WebSocket routes (Video & Live Camera handling)
  ┃ ┃ ┣ 📜 captioner.py         # Routes requests to the HF Space API
- ┃ ┃ ┣ 📜 classifier.py        # Danger classification logic
+ ┃ ┃ ┣ 📜 classifier.py        # Danger classification and context logic
+ ┃ ┃ ┣ 📜 motion_tracker.py    # Lucas-Kanade Optical Flow tracking logic
  ┃ ┃ ┗ ...
  ┃ ┗ 📂 frontend/              # Premium User Interface
  ┃   ┣ 📜 index.html           # Main UI layout
