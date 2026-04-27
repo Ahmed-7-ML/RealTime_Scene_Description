@@ -5,7 +5,7 @@ VisionAssist is a real-time web application designed to help visually impaired i
 ## 🌟 Features
 
 *   **Real-Time Processing:** Supports uploading static images or utilizing a live camera feed via WebSockets for instantaneous analysis.
-*   **AI Scene Description:** Uses advanced Vision-Language Models (like the Hugging Face `Salesforce/blip-image-captioning-base` or equivalent APIs) to generate accurate natural language descriptions of the scene.
+*   **AI Scene Description:** Uses advanced Vision-Language Models (like the Hugging Face `A7med-Ame3/blip2` or equivalent APIs) to generate accurate natural language descriptions of the scene.
 *   **Danger Detection:** Classifies generated captions to determine if a scene is `SAFE` or `DANGEROUS` (e.g., detecting obstacles, holes, or oncoming traffic).
 *   **Motion Tracking (Optical Flow):** Employs Lucas-Kanade Optical Flow to determine motion direction and magnitude (Approaching, Moving Left/Right), providing richer contextual danger alerts.
 *   **Video Synthesis & Reporting:** Extracts distinct keyframes from uploaded videos, overlays analysis and danger statuses directly onto the synthesized output video, and offers a downloadable JSON summary report.
@@ -24,7 +24,7 @@ VisionAssist is a real-time web application designed to help visually impaired i
 
 To ensure 100% free uptime and bypass hardware limitations on standard cloud providers, VisionAssist employs a **Dual-Node Architecture**:
 
-1.  **AI Inference Node (Hugging Face Spaces):** A dedicated, private Docker Space running `Salesforce/blip-image-captioning-base` locally on a free 16GB RAM instance. It exposes a single FastAPI endpoint that strictly processes `base64` images into text captions.
+1.  **AI Inference Node (Hugging Face Spaces):** A dedicated, private Docker Space running `A7med-Ame3/blip2` locally on a free 16GB RAM instance. It exposes a single FastAPI endpoint that strictly processes `base64` images into text captions.
 2.  **Web & Logic Node (Microsoft Azure):** An Azure App Service that hosts the beautiful Frontend UI and the primary Python Backend. This node receives images/video/livestreams from the user, forwards the frames to the Hugging Face Space API, and performs text-based danger classification on the returned captions.
 
 ### System Diagram
@@ -48,7 +48,7 @@ graph TD
     end
     
     subgraph "AI Inference Node"
-        BlipModel[Salesforce/blip-image-captioning-base]
+        BlipModel[A7med-Ame3/blip2]
     end
 
     Azure --- MainAPI
@@ -145,7 +145,7 @@ sequenceDiagram
 ```text
 📦 Microsoft-Azure-Demo
  ┣ 📂 hf_space_api/            # Dedicated Hugging Face Space Server (AI Inference Node)
- ┃ ┣ 📜 app.py                 # Standalone API loading BLIP-Base locally
+ ┃ ┣ 📜 app.py                 # Standalone API loading BLIP-2 locally
  ┃ ┣ 📜 Dockerfile             # Container configuration for HF Spaces
  ┃ ┗ 📜 requirements.txt       # Dependencies (transformers, torch, etc.)
  ┣ 📂 notebooks/               # Jupyter Notebooks for testing and evaluation

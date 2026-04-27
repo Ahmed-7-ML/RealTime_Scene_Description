@@ -5,15 +5,15 @@ from typing import Dict, Any
 
 class Captioner:
     """
-    A wrapper class to load and run the Blip-Base Vision-Language Model for scene description.
+    A wrapper class to load and run the BLIP-2 Vision-Language Model for scene description.
     """
     def __init__(self):
         """
-        Initializes the Blip-Base captioning model.
+        Initializes the BLIP-2 captioning model.
         It uses the Hugging Face API if HUGGINGFACE_API_KEY is present,
         otherwise it attempts to load the model locally.
         """
-        self.model_name = "Salesforce/blip-image-captioning-base"
+        self.model_name = "A7med-Ame3/blip2"
         self.api_key = os.getenv("HUGGINGFACE_API_KEY")
         self.use_api = bool(self.api_key)
         
@@ -26,35 +26,35 @@ class Captioner:
         self._load_model()
         
     def _load_model(self):
-        """Loads the Blip-Base model either via API client or local transformers."""
+        """Loads the BLIP-2 model either via API client or local transformers."""
         if self.use_api:
             from huggingface_hub import InferenceClient
-            print("Configuring Hugging Face API via huggingface_hub for Blip-Base...")
+            print("Configuring Hugging Face API via huggingface_hub for BLIP-2...")
             self.client = InferenceClient(model=self.model_name, token=self.api_key)
             print("Hugging Face API configured successfully.")
         else:
-            print("No HUGGINGFACE_API_KEY found. Attempting to load Blip-Base locally...")
+            print("No HUGGINGFACE_API_KEY found. Attempting to load BLIP-2 locally...")
             try:
                 import torch
-                from transformers import BlipProcessor, BlipForConditionalGeneration
+                from transformers import Blip2Processor, Blip2ForConditionalGeneration
                 
                 self.device = "cuda" if torch.cuda.is_available() else "cpu"
                 print(f"Loading local model on {self.device}...")
                 
-                self.processor = BlipProcessor.from_pretrained(self.model_name)
+                self.processor = Blip2Processor.from_pretrained(self.model_name)
                 dtype = torch.float16 if self.device == "cuda" else torch.float32
-                self.model = BlipForConditionalGeneration.from_pretrained(
+                self.model = Blip2ForConditionalGeneration.from_pretrained(
                     self.model_name, 
                     torch_dtype=dtype
                 ).to(self.device)
-                print("Local BLIP model loaded successfully.")
+                print("Local BLIP-2 model loaded successfully.")
             except ImportError as e:
                 print(f"Error loading local model. Please install torch and transformers. {e}")
                 raise
 
     def generate_caption(self, image: Image.Image) -> Dict[str, Any]:
         """
-        Generates a caption for the given image using Blip-Base and measures latency.
+        Generates a caption for the given image using BLIP-2 and measures latency.
         """
         start_time = time.perf_counter()
         
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     dummy_image = Image.new('RGB', (224, 224), color = 'red')
     
     try:
-        print("Testing Blip-Base Captioner pipeline...")
+        print("Testing BLIP-2 Captioner pipeline...")
         captioner = Captioner()
         result = captioner.generate_caption(dummy_image)
         

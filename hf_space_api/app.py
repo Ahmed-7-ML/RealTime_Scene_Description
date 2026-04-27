@@ -5,12 +5,12 @@ import time
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from PIL import Image
-from transformers import BlipProcessor, BlipForConditionalGeneration
+from transformers import Blip2Processor, Blip2ForConditionalGeneration
 
-app = FastAPI(title="VisionAssist BLIP-Base API")
+app = FastAPI(title="VisionAssist BLIP-2 API")
 
 # Global variables for model and processor
-model_name = "Salesforce/blip-image-captioning-base"
+model_name = "A7med-Ame3/blip2"
 device = "cuda" if torch.cuda.is_available() else "cpu"
 processor = None
 model = None
@@ -20,9 +20,9 @@ async def load_model():
     global processor, model
     print(f"Loading {model_name} on {device}...")
     try:
-        processor = BlipProcessor.from_pretrained(model_name)
+        processor = Blip2Processor.from_pretrained(model_name)
         dtype = torch.float16 if device == "cuda" else torch.float32
-        model = BlipForConditionalGeneration.from_pretrained(
+        model = Blip2ForConditionalGeneration.from_pretrained(
             model_name, 
             torch_dtype=dtype
         ).to(device)
